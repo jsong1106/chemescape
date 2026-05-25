@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { ROOMS, GAME_CONFIG } from './data/rooms'
+import { buildGameFromSeed } from './lib/random'
 import { useGameState } from './hooks/useGameState'
 import { useTimer } from './hooks/useTimer'
 import TimerBar from './components/TimerBar'
@@ -10,21 +11,23 @@ import RoomScreen from './screens/RoomScreen'
 import TransitionScreen from './screens/TransitionScreen'
 import VaultScreen from './screens/VaultScreen'
 
-// Top-level state machine:
-//   intro → room → transition → room → ... → vault
-//
-// Timer rules:
-//   - Auto-pauses between rooms (transition screen)
-//   - Player can also manually pause mid-room via the timer bar button
-//   - Manual pause shows a full-screen overlay to prevent puzzle peeking
+// Top-level state machine.
+// On game start, we use the Game ID to seed a deterministic puzzle pick
+// from each room's slot pool. Same ID = same puzzles for every team.
 
 export default function App() {
   const { state, update, reset } = useGameState()
   const timer = useTimer(GAME_CONFIG.totalTimeSeconds)
   const [manuallyPaused, setManuallyPaused] = useState(false)
 
-  // Auto-pause when not on the room screen.
-  // When on room screen, run unless manually paused.
+  // Build the active game (4 rooms with picked puzzles + derived codes)
+  // from the current Game ID. Recomputed only when Game ID changes.
+  const activeRooms = useMemo(() => {
+    if (!state.gameId) return null
+    return buildGameFromSeed(ROOMS, state.gameId)
+  }, [state.gameId])
+
+  // Auto-pause when not on room screen; respect manual pause too.
   useEffect(() => {
     if (state.screen === 'room' && !manuallyPaused) {
       timer.start()
@@ -33,17 +36,15 @@ export default function App() {
     }
   }, [state.screen, manuallyPaused]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const currentRoom = ROOMS[state.currentRoomIndex]
-  const nextRoom = ROOMS[state.currentRoomIndex + 1]
+  const currentRoom = activeRooms?.[state.currentRoomIndex]
+  const nextRoom = activeRooms?.[state.currentRoomIndex + 1]
 
-  // --- Transitions ---
-
-  const handleBegin = (teamName) => {
-    update({ teamName, screen: 'room', currentRoomIndex: 0 })
+  const handleBegin = (teamName, gameId) => {
+    update({ teamName, gameId, screen: 'room', currentRoomIndex: 0 })
   }
 
   const handleRoomUnlock = () => {
-    setManuallyPaused(false) // clear any manual pause when leaving room
+    setManuallyPaused(false)
     update({ screen: 'transition' })
   }
 
@@ -73,8 +74,6 @@ export default function App() {
     setManuallyPaused((p) => !p)
   }
 
-  // --- Render ---
-
   const showTimer = state.screen === 'room' || state.screen === 'transition'
   const isAutoPaused = state.screen === 'transition'
 
@@ -87,16 +86,17 @@ export default function App() {
           isPaused={manuallyPaused || isAutoPaused}
           isAutoPaused={isAutoPaused}
           onTogglePause={state.screen === 'room' ? handleTogglePause : undefined}
+          gameId={state.gameId}
         />
       )}
 
       {state.screen === 'intro' && <IntroScreen onBegin={handleBegin} />}
 
-      {state.screen === 'room' && (
+      {state.screen === 'room' && currentRoom && (
         <RoomScreen room={currentRoom} onUnlock={handleRoomUnlock} />
       )}
 
-      {state.screen === 'transition' && (
+      {state.screen === 'transition' && currentRoom && (
         <TransitionScreen
           completedRoom={currentRoom}
           nextRoom={nextRoom}
@@ -108,12 +108,12 @@ export default function App() {
       {state.screen === 'vault' && (
         <VaultScreen
           teamName={state.teamName}
+          gameId={state.gameId}
           secondsLeft={state.finalScoreSeconds ?? timer.secondsLeft}
           onPlayAgain={handlePlayAgain}
         />
       )}
 
-      {/* Manual-pause overlay only on room screen */}
       {state.screen === 'room' && manuallyPaused && (
         <PauseOverlay onResume={() => setManuallyPaused(false)} />
       )}

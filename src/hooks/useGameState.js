@@ -1,16 +1,15 @@
 import { useState, useCallback, useEffect } from 'react'
 
-// Persisted game state. Stores team name, current room index, and which
-// screen we're on (intro | room | transition | vault).
-// Refreshing the page resumes where you left off.
+// Persisted game state. Refresh restores in-progress games.
 
 const STORAGE_KEY = 'chemescape-state'
 
 const defaultState = {
   teamName: '',
-  currentRoomIndex: 0, // 0-3 for 4 rooms
-  screen: 'intro', // intro | room | transition | vault
-  finalScoreSeconds: null, // set when vault reached
+  gameId: null,
+  currentRoomIndex: 0,
+  screen: 'intro',
+  finalScoreSeconds: null,
   wasOvertime: false,
 }
 
@@ -27,7 +26,6 @@ function loadState() {
 export function useGameState() {
   const [state, setState] = useState(loadState)
 
-  // Persist on every change
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
   }, [state])

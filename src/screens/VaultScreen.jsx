@@ -1,23 +1,31 @@
+import { useState } from 'react'
 import Button from '../components/Button'
 import { formatTime } from '../hooks/useTimer'
 import { GAME_CONFIG } from '../data/rooms'
 
-// Final score formula:
-// - Finished under 20:00: score = 1200 - secondsElapsed (higher = better)
-//   displayed as "time used"
-// - Overtime: score = (1200 - secondsElapsed) but each overtime second counts 2x
-//
-// Simpler display: show TIME USED. Lower time = better.
-// If overtime, show the "effective time" with 2x penalty applied.
+// Final score screen. Now also shows the Game ID so winners can share it
+// for classmates to attempt the same set of puzzles.
 
-export default function VaultScreen({ teamName, secondsLeft, onPlayAgain }) {
+export default function VaultScreen({ teamName, gameId, secondsLeft, onPlayAgain }) {
+  const [copied, setCopied] = useState(false)
   const wasOvertime = secondsLeft < 0
   const overtimeSeconds = wasOvertime ? Math.abs(secondsLeft) : 0
-  const baseTimeUsed = GAME_CONFIG.totalTimeSeconds - secondsLeft // negative-safe
-  // If overtime, the overtime portion is doubled
+  const baseTimeUsed = GAME_CONFIG.totalTimeSeconds - secondsLeft
   const effectiveTime = wasOvertime
     ? GAME_CONFIG.totalTimeSeconds + overtimeSeconds * GAME_CONFIG.overtimePenaltyMultiplier
     : baseTimeUsed
+
+  const handleCopyId = async () => {
+    try {
+      await navigator.clipboard.writeText(String(gameId))
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Fallback: just visual feedback
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 grid-bg">
@@ -35,7 +43,7 @@ export default function VaultScreen({ teamName, secondsLeft, onPlayAgain }) {
           </p>
 
           {/* Score box */}
-          <div className="border-2 border-loyola-gold bg-loyola-blue-deep/80 rounded-sm p-6 mb-6 animate-pulse-glow">
+          <div className="border-2 border-loyola-gold bg-loyola-blue-deep/80 rounded-sm p-6 mb-4 animate-pulse-glow">
             {wasOvertime && (
               <div className="inline-block mb-3 px-3 py-1 bg-red-500/20 border border-red-500/40 rounded-sm">
                 <span className="font-mono text-xs uppercase tracking-widest text-red-400">
@@ -55,8 +63,7 @@ export default function VaultScreen({ teamName, secondsLeft, onPlayAgain }) {
               <div className="text-xs text-loyola-paper/70 space-y-1 font-mono">
                 <div>Base time: 20:00</div>
                 <div>
-                  Overtime: {formatTime(overtimeSeconds)} × 2 ={' '}
-                  {formatTime(overtimeSeconds * 2)}
+                  Overtime: {formatTime(overtimeSeconds)} × 2 = {formatTime(overtimeSeconds * 2)}
                 </div>
                 <div className="text-loyola-gold pt-1 border-t border-loyola-gold/20">
                   Lower is better — beat your classmates
@@ -65,21 +72,39 @@ export default function VaultScreen({ teamName, secondsLeft, onPlayAgain }) {
             ) : (
               <div className="text-xs text-loyola-paper/70 font-mono">
                 <div>Time remaining when vault unlocked: {formatTime(secondsLeft)}</div>
-                <div className="text-loyola-gold pt-2">
-                  Nice run — share with your team!
-                </div>
               </div>
             )}
           </div>
 
-          <div className="space-y-3">
-            <Button onClick={onPlayAgain} className="text-base">
-              ↻ Play Again
-            </Button>
-            <p className="text-xs text-loyola-paper/50 font-mono pt-2">
-              Project by Loyola Blakefield · Chemistry 10
-            </p>
-          </div>
+          {/* Game ID share */}
+          {gameId && (
+            <div className="border-2 border-loyola-blue/40 bg-loyola-blue-deep/40 rounded-sm p-4 mb-6">
+              <div className="font-mono text-xs uppercase tracking-widest text-loyola-gold/70 mb-2">
+                ▸ Share This Game
+              </div>
+              <div className="flex items-center justify-center gap-3 mb-2">
+                <span className="font-mono text-3xl text-loyola-gold tabular-nums tracking-widest">
+                  #{gameId}
+                </span>
+                <button
+                  onClick={handleCopyId}
+                  className="font-mono text-xs uppercase tracking-widest px-3 py-2 bg-loyola-gold/10 hover:bg-loyola-gold/20 text-loyola-gold border border-loyola-gold/40 rounded-sm"
+                >
+                  {copied ? '✓ Copied' : '📋 Copy ID'}
+                </button>
+              </div>
+              <div className="text-xs text-loyola-paper/60">
+                Send this ID to classmates so they can attempt your exact set and compare times.
+              </div>
+            </div>
+          )}
+
+          <Button onClick={onPlayAgain} className="text-base">
+            ↻ Play Again
+          </Button>
+          <p className="text-xs text-loyola-paper/50 font-mono pt-4">
+            Project by Loyola Blakefield · Chemistry 10
+          </p>
         </div>
       </div>
     </div>
