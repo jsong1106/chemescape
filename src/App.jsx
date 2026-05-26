@@ -5,6 +5,7 @@ import { useGameState } from './hooks/useGameState'
 import { useTimer } from './hooks/useTimer'
 import TimerBar from './components/TimerBar'
 import PauseOverlay from './components/PauseOverlay'
+import ExitConfirmModal from './components/ExitConfirmModal'
 import PeriodicTable from './components/PeriodicTable'
 import IntroScreen from './screens/IntroScreen'
 import RoomScreen from './screens/RoomScreen'
@@ -12,29 +13,29 @@ import TransitionScreen from './screens/TransitionScreen'
 import VaultScreen from './screens/VaultScreen'
 
 // Top-level state machine.
-// On game start, we use the Game ID to seed a deterministic puzzle pick
-// from each room's slot pool. Same ID = same puzzles for every team.
+// Exit button is available during room and transition screens.
+// Confirmation modal prevents accidental quits.
 
 export default function App() {
   const { state, update, reset } = useGameState()
   const timer = useTimer(GAME_CONFIG.totalTimeSeconds)
   const [manuallyPaused, setManuallyPaused] = useState(false)
+  const [showExitConfirm, setShowExitConfirm] = useState(false)
 
-  // Build the active game (4 rooms with picked puzzles + derived codes)
-  // from the current Game ID. Recomputed only when Game ID changes.
+  // Active puzzles seeded by Game ID
   const activeRooms = useMemo(() => {
     if (!state.gameId) return null
     return buildGameFromSeed(ROOMS, state.gameId)
   }, [state.gameId])
 
-  // Auto-pause when not on room screen; respect manual pause too.
+  // Auto-pause when not on room screen; respect manual pause and exit modal
   useEffect(() => {
-    if (state.screen === 'room' && !manuallyPaused) {
+    if (state.screen === 'room' && !manuallyPaused && !showExitConfirm) {
       timer.start()
     } else {
       timer.pause()
     }
-  }, [state.screen, manuallyPaused]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [state.screen, manuallyPaused, showExitConfirm]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentRoom = activeRooms?.[state.currentRoomIndex]
   const nextRoom = activeRooms?.[state.currentRoomIndex + 1]
@@ -74,8 +75,25 @@ export default function App() {
     setManuallyPaused((p) => !p)
   }
 
+  const handleRequestExit = () => {
+    setShowExitConfirm(true)
+  }
+
+  const handleConfirmExit = () => {
+    // Same effect as Play Again: full wipe
+    timer.reset()
+    setManuallyPaused(false)
+    setShowExitConfirm(false)
+    reset()
+  }
+
+  const handleCancelExit = () => {
+    setShowExitConfirm(false)
+  }
+
   const showTimer = state.screen === 'room' || state.screen === 'transition'
   const isAutoPaused = state.screen === 'transition'
+  const canExit = showTimer
 
   return (
     <>
@@ -86,6 +104,7 @@ export default function App() {
           isPaused={manuallyPaused || isAutoPaused}
           isAutoPaused={isAutoPaused}
           onTogglePause={state.screen === 'room' ? handleTogglePause : undefined}
+          onExit={canExit ? handleRequestExit : undefined}
           gameId={state.gameId}
         />
       )}
@@ -114,8 +133,13 @@ export default function App() {
         />
       )}
 
-      {state.screen === 'room' && manuallyPaused && (
+      {/* Overlays */}
+      {state.screen === 'room' && manuallyPaused && !showExitConfirm && (
         <PauseOverlay onResume={() => setManuallyPaused(false)} />
+      )}
+
+      {showExitConfirm && (
+        <ExitConfirmModal onCancel={handleCancelExit} onConfirm={handleConfirmExit} />
       )}
 
       {(state.screen === 'room' || state.screen === 'transition') && <PeriodicTable />}

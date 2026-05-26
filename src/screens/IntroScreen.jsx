@@ -93,6 +93,9 @@ export default function IntroScreen({ onBegin }) {
               <p>
                 <span className="text-loyola-gold font-mono">8.</span> Periodic table provided in-game (bottom-right). No outside notes.
               </p>
+              <p>
+                <span className="text-loyola-gold font-mono">9.</span> Need to bail out? Use the ✕ Exit button in the top bar anytime — it returns you to the home screen with no score recorded.
+              </p>
             </div>
           )}
         </div>
